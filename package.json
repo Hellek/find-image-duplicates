@@ -1,28 +1,68 @@
 {
-  "name": "test-nodejs-boilerplate",
-  "version": "1.0.0",
-  "description": "Simple node boilerplate",
-  "main": "src/index.ts",
+  "name": "search-image-duplicates",
+  "version": "2.0.0",
+  "description": "Утилита поиска дубликатов изображений",
+  "author": "Roman Basharin",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hellek/pet-search-image-duplicates"
+  },
   "engines": {
-    "node": "16.18.1"
+    "node": "22",
+    "npm": "9 || 10"
   },
   "scripts": {
-    "serve": "yarn && ts-node-dev --respawn --transpile-only ./src/index.ts"
-  },
-  "author": "",
-  "license": "UNLICENSED",
-  "devDependencies": {
-    "@types/node": "16.18.1",
-    "@typescript-eslint/eslint-plugin": "5.60.0",
-    "@typescript-eslint/parser": "5.60.0",
-    "eslint": "8.43.0",
-    "eslint-config-airbnb-base": "15.0.0",
-    "eslint-import-resolver-typescript": "3.5.5",
-    "eslint-plugin-import": "2.27.5",
-    "ts-node-dev": "2.0.0",
-    "typescript": "4.9.5"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "preview": "npx serve out",
+    "lintstyle": "stylelint --allow-empty-input \"(app|components)/**/*.css\"",
+    "lintstyle:fix": "stylelint --fix \"(app|components)/**/*.css\"",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "prepare": "git config core.hooksPath .git-hooks || echo 'Not in a git repo'"
   },
   "dependencies": {
-    "file-sync-cmp": "0.1.1"
-  }
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.563.0",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^2.10.0",
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.4",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "jsdom": "^28.0.0",
+    "lint-staged": "^15",
+    "stylelint": "^16",
+    "stylelint-config-standard": "^36",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.0.18"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all"
+  ]
 }
