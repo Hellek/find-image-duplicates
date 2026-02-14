@@ -2,12 +2,12 @@
 
 import { useCallback, useRef, useState } from 'react'
 
-import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { DuplicateResults } from '@/components/DuplicateResults'
 import { Header } from '@/components/Header'
 import { ScanProgress } from '@/components/ScanProgress'
 import type { SearchMode } from '@/components/SearchModeSelector'
 import { SearchModeSelector } from '@/components/SearchModeSelector'
+import { SourcePicker } from '@/components/SourcePicker'
 import { ThresholdSlider } from '@/components/ThresholdSlider'
 import type { DuplicateGroup, ScanProgress as ScanProgressData } from '@/lib/duplicateFinder'
 import { findExactDuplicates, findSimilarDuplicates } from '@/lib/duplicateFinder'
@@ -131,7 +131,7 @@ export default function HomePage() {
                 <p className="text-sm text-destructive">{error}</p>
               )}
 
-              <DirectoryPicker onDirectorySelected={handleDirectorySelected} />
+              <SourcePicker onSourceSelected={handleDirectorySelected} />
             </>
           )}
 

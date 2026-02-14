@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FolderOpen, Monitor } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -15,7 +15,11 @@ interface DirectoryPickerProps {
 
 export function DirectoryPicker({ onDirectorySelected, disabled }: DirectoryPickerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const supportsNativeApi = isFileSystemAccessSupported()
+  const [supportsNativeApi, setSupportsNativeApi] = useState(false)
+
+  useEffect(() => {
+    queueMicrotask(() => setSupportsNativeApi(isFileSystemAccessSupported()))
+  }, [])
 
   const handleNativePick = async () => {
     try {
@@ -52,28 +56,23 @@ export function DirectoryPicker({ onDirectorySelected, disabled }: DirectoryPick
         </p>
       </div>
 
-      {supportsNativeApi ? (
-        <Button size="lg" onClick={handleNativePick} disabled={disabled}>
-          <FolderOpen className="size-4" />
-          Выбрать папку
-        </Button>
-      ) : (
-        <>
-          <Button size="lg" onClick={handleFallbackPick} disabled={disabled}>
-            <FolderOpen className="size-4" />
-            Выбрать папку
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            /* @ts-expect-error webkitdirectory is non-standard but widely supported */
-            webkitdirectory=""
-            multiple
-            className="hidden"
-            onChange={handleFileInputChange}
-          />
-        </>
-      )}
+      <Button
+        size="lg"
+        onClick={supportsNativeApi ? handleNativePick : handleFallbackPick}
+        disabled={disabled}
+      >
+        <FolderOpen className="size-4" />
+        Выбрать папку
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        /* @ts-expect-error webkitdirectory is non-standard but widely supported */
+        webkitdirectory=""
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
 
       {!supportsNativeApi && (
         <Alert>

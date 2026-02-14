@@ -15,7 +15,7 @@ interface DuplicateGroupProps {
 
 export function DuplicateGroup({ group, index }: DuplicateGroupProps) {
   const previewUrls = useMemo(
-    () => group.files.map(f => createPreviewUrl(f.entry.file)),
+    () => group.files.map(f => createPreviewUrl(f.file)),
     [group.files],
   )
 
@@ -47,7 +47,7 @@ export function DuplicateGroup({ group, index }: DuplicateGroupProps) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrls[fileIdx]}
-                  alt={file.entry.file.name}
+                  alt={file.file.name}
                   className="size-full object-cover"
                   loading="lazy"
                 />
@@ -55,15 +55,30 @@ export function DuplicateGroup({ group, index }: DuplicateGroupProps) {
               <div className="space-y-0.5">
                 <p
                   className="text-xs font-medium truncate"
-                  title={file.entry.path}
+                  title={file.file.name}
                 >
-                  {file.entry.file.name}
+                  {file.file.name}
                 </p>
-                <p className="text-xs text-muted-foreground truncate" title={file.entry.path}>
-                  {file.entry.path}
-                </p>
+                {file.entry.directoryUrl ? (
+                  <a
+                    href={file.entry.directoryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline break-all block"
+                    title={file.entry.path}
+                  >
+                    {file.entry.path}
+                  </a>
+                ) : (
+                  <p
+                    className="text-xs text-muted-foreground break-all"
+                    title={file.entry.path}
+                  >
+                    {file.entry.path}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {formatFileSize(file.entry.file.size)}
+                  {formatFileSize(file.file.size)}
                 </p>
               </div>
             </div>

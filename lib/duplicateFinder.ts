@@ -1,9 +1,12 @@
 import type { FileEntry } from '@/lib/fileSystem'
+import { getFileFromEntry } from '@/lib/fileSystem'
 import { computeCryptoHash, computePerceptualHash, hammingDistance } from '@/lib/imageHash'
 
 export interface HashedFile {
   entry: FileEntry
   hash: string
+  /** Файл, использованный для хэширования (для превью и размера) */
+  file: File
   /** Object URL для превью (создаётся лениво) */
   previewUrl?: string
 }
@@ -54,8 +57,9 @@ export async function findExactDuplicates(
       phase: 'hashing',
     })
 
-    const hash = await computeCryptoHash(entry.file)
-    const hashedFile: HashedFile = { entry, hash }
+    const file = await getFileFromEntry(entry)
+    const hash = await computeCryptoHash(file)
+    const hashedFile: HashedFile = { entry, hash, file }
 
     const group = hashMap.get(hash)
     if (group) {
@@ -116,8 +120,9 @@ export async function findSimilarDuplicates(
     })
 
     try {
-      const hash = await computePerceptualHash(entry.file)
-      hashedFiles.push({ entry, hash })
+      const file = await getFileFromEntry(entry)
+      const hash = await computePerceptualHash(file)
+      hashedFiles.push({ entry, hash, file })
     } catch {
       // Пропускаем файлы, которые не удалось декодировать
       console.warn(`Не удалось обработать: ${entry.path}`)
