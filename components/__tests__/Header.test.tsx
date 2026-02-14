@@ -10,8 +10,15 @@ describe('Header', () => {
     expect(header).toBeInTheDocument()
   })
 
-  it('displays header text', () => {
+  it('displays title', () => {
     render(<Header />)
-    expect(screen.getByText('Header')).toBeInTheDocument()
+    expect(screen.getByText('Поиск дубликатов изображений')).toBeInTheDocument()
+  })
+
+  it('displays subtitle', () => {
+    render(<Header />)
+    expect(
+      screen.getByText('Найдите точные копии и визуально похожие фотографии'),
+    ).toBeInTheDocument()
   })
 })
