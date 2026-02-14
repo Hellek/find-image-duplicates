@@ -1,5 +1,5 @@
 {
-  "name": "search-image-duplicates",
+  "name": "find-image-duplicates",
   "version": "2.0.0",
   "description": "Утилита поиска дубликатов изображений",
   "author": "Roman Basharin",
@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Hellek/pet-search-image-duplicates"
+    "url": "https://github.com/Hellek/find-image-duplicates"
   },
   "engines": {
     "node": "22",
