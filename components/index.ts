@@ -1,2 +1,8 @@
 export { Header } from './Header'
 export { Button, buttonVariants } from './ui/button'
+export { DirectoryPicker } from './DirectoryPicker'
+export { SearchModeSelector } from './SearchModeSelector'
+export { ThresholdSlider } from './ThresholdSlider'
+export { ScanProgress } from './ScanProgress'
+export { DuplicateGroup } from './DuplicateGroup'
+export { DuplicateResults } from './DuplicateResults'
