@@ -14,6 +14,16 @@ export interface YandexResource {
   mime_type: string
   size: number
   preview?: string
+  /** MD5-хэш файла (документированное поле API) */
+  md5?: string
+  /** SHA-256 хэш файла (недокументированное, но присутствует в ответах) */
+  sha256?: string
+  /** Дата создания ресурса (ISO 8601) */
+  created?: string
+  /** Дата изменения ресурса (ISO 8601) */
+  modified?: string
+  /** EXIF-данные (недокументированное, структура может варьироваться) */
+  exif?: Record<string, unknown>
 }
 
 export interface YandexFolderResource {
@@ -102,7 +112,19 @@ async function listImagesFromFolder(
     url.searchParams.set('path', folderPath.startsWith('disk:') ? folderPath : `disk:${folderPath || '/'}`)
     url.searchParams.set(
       'fields',
-      '_embedded.items.name,_embedded.items.path,_embedded.items.type,_embedded.items.mime_type,_embedded.items.size,_embedded.items.preview',
+      [
+        '_embedded.items.name',
+        '_embedded.items.path',
+        '_embedded.items.type',
+        '_embedded.items.mime_type',
+        '_embedded.items.size',
+        '_embedded.items.preview',
+        '_embedded.items.md5',
+        '_embedded.items.sha256',
+        '_embedded.items.created',
+        '_embedded.items.modified',
+        '_embedded.items.exif',
+      ].join(','),
     )
     url.searchParams.set('limit', String(limit))
     url.searchParams.set('offset', String(offset))
@@ -163,7 +185,22 @@ export async function listImageFiles(
     url.searchParams.set('media_type', 'image,unknown')
     url.searchParams.set('limit', String(limit))
     url.searchParams.set('offset', String(offset))
-    url.searchParams.set('fields', 'items.name,items.path,items.type,items.mime_type,items.size,items.preview')
+    url.searchParams.set(
+      'fields',
+      [
+        'items.name',
+        'items.path',
+        'items.type',
+        'items.mime_type',
+        'items.size',
+        'items.preview',
+        'items.md5',
+        'items.sha256',
+        'items.created',
+        'items.modified',
+        'items.exif',
+      ].join(','),
+    )
 
     const res = await fetch(url.toString(), {
       headers: getAuthHeaders(token),

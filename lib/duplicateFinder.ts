@@ -12,7 +12,7 @@ export interface HashedFile {
 }
 
 export interface DuplicateGroup {
-  /** Хэш группы (для точных — SHA-256, для похожих — хэш первого файла) */
+  /** Хэш группы (для точных — SHA-256/MD5, для похожих — хэш первого файла) */
   hash: string
   files: HashedFile[]
 }
@@ -32,15 +32,117 @@ export interface ScanProgress {
 const BATCH_SIZE = 5
 
 /**
- * Ищет точные дубликаты по SHA-256.
- * Async-генератор: yield-ит прогресс на каждом шаге.
- * По завершению возвращает массив групп дубликатов через callback.
+ * Определяет, какой хэш из метаданных доступен у всех файлов.
+ * Предпочитает sha256 (совпадает с вычисляемым), затем md5 (документированный).
+ * Возвращает null, если не у всех файлов есть хэш.
+ */
+function getMetadataHashKey(files: FileEntry[]): 'sha256' | 'md5' | null {
+  if (files.length === 0) return null
+  if (files.every(f => f.sha256)) return 'sha256'
+  if (files.every(f => f.md5)) return 'md5'
+  return null
+}
+
+/**
+ * Быстрый путь: группировка точных дубликатов по хэшу из метаданных API.
+ * Не скачивает файлы для вычисления хэша — использует md5/sha256 из ответа Яндекс.Диска.
+ * Скачивает только файлы из дубликатных групп (для отображения превью в UI).
+ */
+async function findExactDuplicatesByMetadata(
+  files: FileEntry[],
+  hashKey: 'sha256' | 'md5',
+  onProgress: (progress: ScanProgress) => void,
+  signal?: AbortSignal,
+): Promise<DuplicateGroup[]> {
+  // Фаза 1: мгновенная группировка по хэшу из метаданных
+  const hashMap = new Map<string, FileEntry[]>()
+
+  for (let i = 0; i < files.length; i++) {
+    if (signal?.aborted) {
+      throw new DOMException('Операция отменена', 'AbortError')
+    }
+
+    const entry = files[i]
+    const hash = entry[hashKey]!
+
+    onProgress({
+      totalFiles: files.length,
+      processedFiles: i + 1,
+      currentFile: entry.path,
+      phase: 'hashing',
+    })
+
+    const group = hashMap.get(hash)
+    if (group) {
+      group.push(entry)
+    } else {
+      hashMap.set(hash, [entry])
+    }
+  }
+
+  // Фаза 2: отбираем только группы с 2+ файлами (дубликаты)
+  const duplicateEntries: [string, FileEntry[]][] = []
+  for (const [hash, entries] of hashMap) {
+    if (entries.length > 1) {
+      duplicateEntries.push([hash, entries])
+    }
+  }
+
+  // Фаза 3: скачиваем файлы только из дубликатных групп (для превью в UI)
+  const totalDuplicateFiles = duplicateEntries.reduce((sum, [, entries]) => sum + entries.length, 0)
+  let downloadedCount = 0
+
+  const groups: DuplicateGroup[] = []
+
+  for (const [hash, entries] of duplicateEntries) {
+    const hashedFiles: HashedFile[] = []
+
+    for (const entry of entries) {
+      if (signal?.aborted) {
+        throw new DOMException('Операция отменена', 'AbortError')
+      }
+
+      onProgress({
+        totalFiles: totalDuplicateFiles,
+        processedFiles: downloadedCount,
+        currentFile: entry.path,
+        phase: 'comparing',
+      })
+
+      const file = await getFileFromEntry(entry)
+      hashedFiles.push({ entry, hash, file })
+      downloadedCount += 1
+
+      if (downloadedCount % BATCH_SIZE === 0) {
+        await new Promise(r => setTimeout(r, 0))
+      }
+    }
+
+    groups.push({ hash, files: hashedFiles })
+  }
+
+  return groups
+}
+
+/**
+ * Ищет точные дубликаты.
+ * Быстрый путь: если у всех файлов есть хэш из метаданных (Яндекс.Диск) —
+ * группирует по md5/sha256 без скачивания. Скачивает только дубликаты для превью.
+ * Fallback: скачивает все файлы и вычисляет SHA-256 (для локальных файлов или при отсутствии метаданных).
  */
 export async function findExactDuplicates(
   files: FileEntry[],
   onProgress: (progress: ScanProgress) => void,
   signal?: AbortSignal,
 ): Promise<DuplicateGroup[]> {
+  // Быстрый путь: хэши из метаданных API (без скачивания)
+  const hashKey = getMetadataHashKey(files)
+  if (hashKey) {
+    console.log(`[duplicateFinder] Быстрый путь: группировка по ${hashKey} из метаданных (${files.length} файлов)`)
+    return findExactDuplicatesByMetadata(files, hashKey, onProgress, signal)
+  }
+
+  // Fallback: скачивание и вычисление SHA-256
   const hashMap = new Map<string, HashedFile[]>()
 
   for (let i = 0; i < files.length; i++) {
@@ -95,6 +197,9 @@ export async function findExactDuplicates(
 /**
  * Ищет визуально похожие дубликаты по перцептивному хэшу.
  * threshold — максимальное расстояние Хэмминга для считания файлов похожими.
+ *
+ * Оптимизация: если у файлов есть md5 из метаданных — побайтовые копии группируются,
+ * и перцептивный хэш вычисляется только для одного представителя каждой md5-группы.
  */
 export async function findSimilarDuplicates(
   files: FileEntry[],
@@ -103,33 +208,93 @@ export async function findSimilarDuplicates(
   signal?: AbortSignal,
 ): Promise<DuplicateGroup[]> {
   // Фаза 1: вычисляем перцептивные хэши
+  // Оптимизация: если есть md5 — скачиваем и хэшируем только уникальные файлы
+  const hasMetadata = files.length > 0 && files.every(f => f.md5)
   const hashedFiles: HashedFile[] = []
 
-  for (let i = 0; i < files.length; i++) {
-    if (signal?.aborted) {
-      throw new DOMException('Операция отменена', 'AbortError')
+  if (hasMetadata) {
+    // Группируем по md5 — побайтовые копии получат одинаковый перцептивный хэш
+    const md5Groups = new Map<string, FileEntry[]>()
+    for (const entry of files) {
+      const group = md5Groups.get(entry.md5!)
+      if (group) {
+        group.push(entry)
+      } else {
+        md5Groups.set(entry.md5!, [entry])
+      }
     }
 
-    const entry = files[i]
+    const uniqueCount = md5Groups.size
+    let processedUnique = 0
 
-    onProgress({
-      totalFiles: files.length,
-      processedFiles: i,
-      currentFile: entry.path,
-      phase: 'hashing',
-    })
+    for (const entries of md5Groups.values()) {
+      if (signal?.aborted) {
+        throw new DOMException('Операция отменена', 'AbortError')
+      }
 
-    try {
-      const file = await getFileFromEntry(entry)
-      const hash = await computePerceptualHash(file)
-      hashedFiles.push({ entry, hash, file })
-    } catch {
-      // Пропускаем файлы, которые не удалось декодировать
-      console.warn(`Не удалось обработать: ${entry.path}`)
+      const representative = entries[0]
+
+      onProgress({
+        totalFiles: uniqueCount,
+        processedFiles: processedUnique,
+        currentFile: representative.path,
+        phase: 'hashing',
+      })
+
+      try {
+        const file = await getFileFromEntry(representative)
+        const hash = await computePerceptualHash(file)
+
+        // Представитель уже скачан
+        hashedFiles.push({ entry: representative, hash, file })
+
+        // Остальные файлы в md5-группе получают тот же перцептивный хэш
+        for (let i = 1; i < entries.length; i++) {
+          const dupeFile = await getFileFromEntry(entries[i])
+          hashedFiles.push({ entry: entries[i], hash, file: dupeFile })
+        }
+      } catch {
+        console.warn(`Не удалось обработать: ${representative.path}`)
+      }
+
+      processedUnique += 1
+
+      if (processedUnique % BATCH_SIZE === 0) {
+        await new Promise(r => setTimeout(r, 0))
+      }
     }
 
-    if (i % BATCH_SIZE === 0) {
-      await new Promise(r => setTimeout(r, 0))
+    console.log(
+      `[duplicateFinder] Похожие: ${files.length} файлов, ${uniqueCount} уникальных по md5 → хэшировано ${uniqueCount}`,
+    )
+  } else {
+    // Fallback: нет метаданных — хэшируем все файлы
+    for (let i = 0; i < files.length; i++) {
+      if (signal?.aborted) {
+        throw new DOMException('Операция отменена', 'AbortError')
+      }
+
+      const entry = files[i]
+
+      onProgress({
+        totalFiles: files.length,
+        processedFiles: i,
+        currentFile: entry.path,
+        phase: 'hashing',
+      })
+
+      try {
+        const file = await getFileFromEntry(entry)
+        const hash = await computePerceptualHash(file)
+        hashedFiles.push({ entry, hash, file })
+      } catch {
+        // Пропускаем файлы, которые не удалось декодировать
+        console.warn(`Не удалось обработать: ${entry.path}`)
+      }
+
+      if (i % BATCH_SIZE === 0) {
+        await new Promise(r => setTimeout(r, 0))
+      }
     }
   }
 

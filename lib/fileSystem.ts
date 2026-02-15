@@ -17,6 +17,14 @@ export interface FileEntry {
   getFile?: () => Promise<File>
   /** URL папки (Яндекс.Диск) или undefined для локальных */
   directoryUrl?: string
+  /** Размер файла в байтах (из метаданных API, без скачивания) */
+  size?: number
+  /** MD5-хэш файла (из метаданных API Яндекс.Диска) */
+  md5?: string
+  /** SHA-256 хэш файла (из метаданных API Яндекс.Диска, недокументированное поле) */
+  sha256?: string
+  /** Имя файла (из метаданных, для отображения без скачивания) */
+  name?: string
 }
 
 /**
@@ -152,6 +160,10 @@ async function scanYandexDisk(
         path,
         getFile: () => downloadFile(token, resource, signal),
         directoryUrl: dirPath ? getYandexDiskFolderUrl(dirPath) : undefined,
+        size: resource.size,
+        md5: resource.md5,
+        sha256: resource.sha256,
+        name: resource.name,
       }
 
       results.push(entry)
