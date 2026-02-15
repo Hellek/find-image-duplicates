@@ -12,10 +12,15 @@ const stylelintCommand = filenames =>
 
 const typeCheckCommand = () => 'tsc --noEmit'
 
+const vitestRelatedCommand = filenames =>
+  `vitest related --run ${filenames
+    .map(f => relative(process.cwd(), f))
+    .join(' ')}`
+
 const config = {
-  '*.{mjs, js,ts,tsx}': [buildEslintCommand],
+  '*.{mjs,js,ts,tsx}': [buildEslintCommand],
   '*.css': [stylelintCommand],
-  '*.{ts,tsx}': [typeCheckCommand],
+  '*.{ts,tsx}': [typeCheckCommand, vitestRelatedCommand],
 }
 
 export default config
