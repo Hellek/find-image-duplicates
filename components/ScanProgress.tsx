@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import type { ScanProgress as ScanProgressData } from '@/lib/duplicateFinder'
+import { formatEta, formatSpeed } from '@/lib/duplicateFinder'
 
 interface ScanProgressProps {
   progress: ScanProgressData
@@ -18,8 +19,11 @@ const PHASE_LABELS: Record<ScanProgressData['phase'], string> = {
 }
 
 export function ScanProgress({ progress, onCancel }: ScanProgressProps) {
-  const { totalFiles, processedFiles, currentFile, phase } = progress
+  const { totalFiles, processedFiles, currentFile, phase, estimatedRemainingMs, downloadSpeed } = progress
   const percent = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0
+
+  const eta = formatEta(estimatedRemainingMs)
+  const speed = formatSpeed(downloadSpeed)
 
   return (
     <div className="w-full max-w-lg space-y-4">
@@ -43,6 +47,13 @@ export function ScanProgress({ progress, onCancel }: ScanProgressProps) {
           %
         </span>
       </div>
+
+      {(eta || speed) && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+          {eta && <span>{eta}</span>}
+          {speed && <span>{speed}</span>}
+        </div>
+      )}
 
       {currentFile && (
         <p className="text-xs text-muted-foreground truncate" title={currentFile}>

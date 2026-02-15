@@ -4,7 +4,9 @@ import {
   createPreviewUrl,
   findExactDuplicates,
   findSimilarDuplicates,
+  formatEta,
   formatFileSize,
+  formatSpeed,
 } from '../duplicateFinder'
 import type { FileEntry } from '../fileSystem'
 
@@ -43,6 +45,61 @@ describe('formatFileSize', () => {
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
     expect(formatFileSize(1024 * 1024 * 5.5)).toBe('5.5 MB')
     expect(formatFileSize(1024 * 1024 * 100)).toBe('100.0 MB')
+  })
+})
+
+describe('formatEta', () => {
+  it('returns null for undefined', () => {
+    expect(formatEta(undefined)).toBeNull()
+  })
+
+  it('returns null for 0 or negative', () => {
+    expect(formatEta(0)).toBeNull()
+    expect(formatEta(-1000)).toBeNull()
+  })
+
+  it('formats seconds only', () => {
+    expect(formatEta(5000)).toBe('≈ 5 сек')
+    expect(formatEta(59000)).toBe('≈ 59 сек')
+  })
+
+  it('formats minutes only', () => {
+    expect(formatEta(60000)).toBe('≈ 1 мин')
+    expect(formatEta(120000)).toBe('≈ 2 мин')
+  })
+
+  it('formats minutes and seconds', () => {
+    expect(formatEta(90000)).toBe('≈ 1 мин 30 сек')
+    expect(formatEta(150000)).toBe('≈ 2 мин 30 сек')
+  })
+
+  it('rounds up partial seconds', () => {
+    expect(formatEta(1500)).toBe('≈ 2 сек')
+  })
+})
+
+describe('formatSpeed', () => {
+  it('returns null for undefined', () => {
+    expect(formatSpeed(undefined)).toBeNull()
+  })
+
+  it('returns null for 0 or negative', () => {
+    expect(formatSpeed(0)).toBeNull()
+    expect(formatSpeed(-100)).toBeNull()
+  })
+
+  it('formats bytes per second', () => {
+    expect(formatSpeed(512)).toBe('512 B/с')
+  })
+
+  it('formats kilobytes per second', () => {
+    expect(formatSpeed(1024)).toBe('1.0 KB/с')
+    expect(formatSpeed(1536)).toBe('1.5 KB/с')
+  })
+
+  it('formats megabytes per second', () => {
+    expect(formatSpeed(1024 * 1024)).toBe('1.0 MB/с')
+    expect(formatSpeed(1024 * 1024 * 5.5)).toBe('5.5 MB/с')
   })
 })
 

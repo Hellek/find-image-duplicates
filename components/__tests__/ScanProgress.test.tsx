@@ -83,4 +83,47 @@ describe('ScanProgress', () => {
 
     expect(screen.getByText(/0 \/ 0/)).toBeInTheDocument()
   })
+
+  it('displays ETA when estimatedRemainingMs is provided', () => {
+    render(
+      <ScanProgress
+        progress={{ ...baseProgress, estimatedRemainingMs: 90000 }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('≈ 1 мин 30 сек')).toBeInTheDocument()
+  })
+
+  it('displays download speed when downloadSpeed is provided', () => {
+    render(
+      <ScanProgress
+        progress={{ ...baseProgress, downloadSpeed: 1024 * 1024 * 2.5 }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('2.5 MB/с')).toBeInTheDocument()
+  })
+
+  it('displays both ETA and speed together', () => {
+    render(
+      <ScanProgress
+        progress={{ ...baseProgress, estimatedRemainingMs: 30000, downloadSpeed: 1024 * 512 }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('≈ 30 сек')).toBeInTheDocument()
+    expect(screen.getByText('512.0 KB/с')).toBeInTheDocument()
+  })
+
+  it('does not display ETA row when no estimates provided', () => {
+    const { container } = render(
+      <ScanProgress progress={baseProgress} onCancel={vi.fn()} />,
+    )
+
+    expect(container.querySelector('.tabular-nums')).toBeInTheDocument()
+    expect(screen.queryByText(/≈/)).not.toBeInTheDocument()
+  })
 })

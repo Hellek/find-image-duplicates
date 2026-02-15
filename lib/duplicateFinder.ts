@@ -26,10 +26,62 @@ export interface ScanProgress {
   currentFile: string
   /** Текущая фаза */
   phase: 'scanning' | 'hashing' | 'comparing'
+  /** Ориентировочное оставшееся время в миллисекундах */
+  estimatedRemainingMs?: number
+  /** Скорость скачивания в байт/сек (только при загрузке удалённых файлов) */
+  downloadSpeed?: number
 }
 
 /** Сколько файлов обрабатывать перед yield на UI поток */
 const BATCH_SIZE = 5
+
+/** Минимум обработанных файлов, после которого ETA становится осмысленным */
+const MIN_FILES_FOR_ETA = 3
+
+/**
+ * Трекер прогресса: отслеживает время и объём скачанных данных
+ * для вычисления ETA и скорости загрузки.
+ *
+ * @param trackSpeed — если true, отслеживает скорость скачивания (для удалённых файлов).
+ *   Для локальных файлов скорость не имеет смысла — передавать false.
+ */
+class ProgressTracker {
+  private readonly startTime: number
+  private readonly trackSpeed: boolean
+  private bytesDownloaded = 0
+
+  constructor(trackSpeed = false) {
+    this.startTime = performance.now()
+    this.trackSpeed = trackSpeed
+  }
+
+  /** Регистрирует обработанный файл (по размеру). Учитывается для скорости только если trackSpeed = true. */
+  addBytes(bytes: number): void {
+    if (this.trackSpeed) {
+      this.bytesDownloaded += bytes
+    }
+  }
+
+  /** Вычисляет ETA и скорость для текущего прогресса */
+  getEstimates(processedFiles: number, totalFiles: number): Pick<ScanProgress, 'estimatedRemainingMs' | 'downloadSpeed'> {
+    if (processedFiles < MIN_FILES_FOR_ETA) {
+      return {}
+    }
+
+    const elapsedMs = performance.now() - this.startTime
+    const remaining = totalFiles - processedFiles
+    const msPerFile = elapsedMs / processedFiles
+    const estimatedRemainingMs = Math.round(msPerFile * remaining)
+
+    const result: Pick<ScanProgress, 'estimatedRemainingMs' | 'downloadSpeed'> = { estimatedRemainingMs }
+
+    if (this.bytesDownloaded > 0) {
+      result.downloadSpeed = Math.round(this.bytesDownloaded / (elapsedMs / 1000))
+    }
+
+    return result
+  }
+}
 
 /**
  * Определяет, какой хэш из метаданных доступен у всех файлов.
@@ -91,6 +143,7 @@ async function findExactDuplicatesByMetadata(
   // Фаза 3: скачиваем файлы только из дубликатных групп (для превью в UI)
   const totalDuplicateFiles = duplicateEntries.reduce((sum, [, entries]) => sum + entries.length, 0)
   let downloadedCount = 0
+  const tracker = new ProgressTracker(true)
 
   const groups: DuplicateGroup[] = []
 
@@ -107,9 +160,11 @@ async function findExactDuplicatesByMetadata(
         processedFiles: downloadedCount,
         currentFile: entry.path,
         phase: 'comparing',
+        ...tracker.getEstimates(downloadedCount, totalDuplicateFiles),
       })
 
       const file = await getFileFromEntry(entry)
+      tracker.addBytes(file.size)
       hashedFiles.push({ entry, hash, file })
       downloadedCount += 1
 
@@ -144,6 +199,8 @@ export async function findExactDuplicates(
 
   // Fallback: скачивание и вычисление SHA-256
   const hashMap = new Map<string, HashedFile[]>()
+  const isRemote = files.length > 0 && !files[0].file
+  const tracker = new ProgressTracker(isRemote)
 
   for (let i = 0; i < files.length; i++) {
     if (signal?.aborted) {
@@ -157,9 +214,11 @@ export async function findExactDuplicates(
       processedFiles: i,
       currentFile: entry.path,
       phase: 'hashing',
+      ...tracker.getEstimates(i, files.length),
     })
 
     const file = await getFileFromEntry(entry)
+    tracker.addBytes(file.size)
     const hash = await computeCryptoHash(file)
     const hashedFile: HashedFile = { entry, hash, file }
 
@@ -226,6 +285,7 @@ export async function findSimilarDuplicates(
 
     const uniqueCount = md5Groups.size
     let processedUnique = 0
+    const tracker = new ProgressTracker(true)
 
     for (const entries of md5Groups.values()) {
       if (signal?.aborted) {
@@ -239,10 +299,12 @@ export async function findSimilarDuplicates(
         processedFiles: processedUnique,
         currentFile: representative.path,
         phase: 'hashing',
+        ...tracker.getEstimates(processedUnique, uniqueCount),
       })
 
       try {
         const file = await getFileFromEntry(representative)
+        tracker.addBytes(file.size)
         const hash = await computePerceptualHash(file)
 
         // Представитель уже скачан
@@ -251,6 +313,7 @@ export async function findSimilarDuplicates(
         // Остальные файлы в md5-группе получают тот же перцептивный хэш
         for (let i = 1; i < entries.length; i++) {
           const dupeFile = await getFileFromEntry(entries[i])
+          tracker.addBytes(dupeFile.size)
           hashedFiles.push({ entry: entries[i], hash, file: dupeFile })
         }
       } catch {
@@ -269,6 +332,9 @@ export async function findSimilarDuplicates(
     )
   } else {
     // Fallback: нет метаданных — хэшируем все файлы
+    const isRemote = files.length > 0 && !files[0].file
+    const tracker = new ProgressTracker(isRemote)
+
     for (let i = 0; i < files.length; i++) {
       if (signal?.aborted) {
         throw new DOMException('Операция отменена', 'AbortError')
@@ -281,10 +347,12 @@ export async function findSimilarDuplicates(
         processedFiles: i,
         currentFile: entry.path,
         phase: 'hashing',
+        ...tracker.getEstimates(i, files.length),
       })
 
       try {
         const file = await getFileFromEntry(entry)
+        tracker.addBytes(file.size)
         const hash = await computePerceptualHash(file)
         hashedFiles.push({ entry, hash, file })
       } catch {
@@ -383,4 +451,39 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Форматирует оставшееся время в человекочитаемый вид.
+ * Возвращает null если значение не задано или ≤ 0.
+ */
+export function formatEta(ms: number | undefined): string | null {
+  if (ms == null || ms <= 0) return null
+
+  const totalSeconds = Math.ceil(ms / 1000)
+
+  if (totalSeconds < 60) {
+    return `≈ ${totalSeconds} сек`
+  }
+
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  if (seconds === 0) {
+    return `≈ ${minutes} мин`
+  }
+
+  return `≈ ${minutes} мин ${seconds} сек`
+}
+
+/**
+ * Форматирует скорость скачивания в человекочитаемый вид.
+ * Возвращает null если значение не задано или ≤ 0.
+ */
+export function formatSpeed(bytesPerSec: number | undefined): string | null {
+  if (bytesPerSec == null || bytesPerSec <= 0) return null
+
+  if (bytesPerSec < 1024) return `${bytesPerSec} B/с`
+  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/с`
+  return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/с`
 }
