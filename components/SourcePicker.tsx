@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { Cloud, FolderOpen } from 'lucide-react'
 
 import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { YANDEX_TOKEN_STORAGE_KEY, YandexDiskConnect } from '@/components/YandexDiskConnect'
+import {
+  CLIENT_IDS_STORAGE_KEY,
+  YANDEX_TOKEN_STORAGE_KEY,
+  YandexDiskConnect,
+} from '@/components/YandexDiskConnect'
 import { YandexFolderPicker } from '@/components/YandexFolderPicker'
 import type { DirectorySource } from '@/lib/fileSystem'
 
@@ -18,18 +22,39 @@ export function SourcePicker({ onSourceSelected, disabled }: SourcePickerProps) 
   const [yandexToken, setYandexToken] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('local')
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      try {
-        const saved = sessionStorage.getItem(YANDEX_TOKEN_STORAGE_KEY)
-        if (saved) {
-          setYandexToken(saved)
-          setActiveTab('yandex')
-        }
-      } catch {
-        // sessionStorage недоступен (приватный режим и т.п.)
+  // useLayoutEffect выполняется ПОСЛЕ коммита DOM, но ДО
+  // отрисовки браузером — гидрация проходит без ошибок,
+  // а пользователь не видит моргания при смене вкладки.
+  // setState напрямую — намеренно: queueMicrotask здесь
+  // приведёт к морганию, т.к. браузер успеет отрисовать
+  // кадр до обработки микрозадачи.
+  useLayoutEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(
+        YANDEX_TOKEN_STORAGE_KEY,
+      )
+
+      if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-paint
+        setYandexToken(saved)
+        setActiveTab('yandex')
+        return
       }
-    })
+    } catch {
+      // sessionStorage недоступен (приватный режим и т.п.)
+    }
+
+    try {
+      const raw = localStorage.getItem(CLIENT_IDS_STORAGE_KEY)
+      const parsed: unknown = raw ? JSON.parse(raw) : []
+      const ids = Array.isArray(parsed) ? parsed : []
+
+      if (ids.length > 0) {
+        setActiveTab('yandex')
+      }
+    } catch {
+      // localStorage недоступен
+    }
   }, [])
 
   return (
