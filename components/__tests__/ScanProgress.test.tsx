@@ -126,4 +126,111 @@ describe('ScanProgress', () => {
     expect(container.querySelector('.tabular-nums')).toBeInTheDocument()
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument()
   })
+
+  it('shows discovering phase label', () => {
+    render(
+      <ScanProgress
+        progress={{ ...baseProgress, phase: 'discovering', directoriesFound: 5 }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Обнаружение структуры...')).toBeInTheDocument()
+  })
+
+  it('shows directories and files count during discovering phase', () => {
+    render(
+      <ScanProgress
+        progress={{
+          ...baseProgress,
+          phase: 'discovering',
+          totalFiles: 42,
+          processedFiles: 0,
+          directoriesFound: 7,
+        }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/Директорий:/)).toBeInTheDocument()
+    expect(screen.getByText(/7/)).toBeInTheDocument()
+    expect(screen.getByText(/Файлов:/)).toBeInTheDocument()
+    expect(screen.getByText(/42/)).toBeInTheDocument()
+  })
+
+  it('does not show progress bar during discovering phase', () => {
+    const { container } = render(
+      <ScanProgress
+        progress={{
+          ...baseProgress,
+          phase: 'discovering',
+          totalFiles: 10,
+          processedFiles: 0,
+          directoriesFound: 3,
+        }}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    // Прогресс-бар не должен отображаться при фазе discovering
+    expect(container.querySelector('[role="progressbar"]')).not.toBeInTheDocument()
+  })
+
+  it('renders directory tree during discovering phase', () => {
+    render(
+      <ScanProgress
+        progress={{
+          ...baseProgress,
+          phase: 'discovering',
+          totalFiles: 5,
+          processedFiles: 0,
+          directoriesFound: 2,
+        }}
+        directoryTree={[
+          {
+            name: 'Photos',
+            path: 'Photos',
+            children: [
+              {
+                name: 'Summer',
+                path: 'Photos/Summer',
+                children: [],
+                completed: true,
+                fileCount: 3,
+              },
+            ],
+            completed: false,
+            fileCount: 2,
+          },
+        ]}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Photos')).toBeInTheDocument()
+    expect(screen.getByText('Summer')).toBeInTheDocument()
+    // Файловые счётчики
+    expect(screen.getByText('(2)')).toBeInTheDocument()
+    expect(screen.getByText('(3)')).toBeInTheDocument()
+  })
+
+  it('does not render directory tree when not in discovering phase', () => {
+    render(
+      <ScanProgress
+        progress={{ ...baseProgress, phase: 'hashing' }}
+        directoryTree={[
+          {
+            name: 'Photos',
+            path: 'Photos',
+            children: [],
+            completed: true,
+            fileCount: 5,
+          },
+        ]}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText('Photos')).not.toBeInTheDocument()
+  })
 })

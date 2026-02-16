@@ -11,8 +11,8 @@ import { SourcePicker } from '@/components/SourcePicker'
 import { ThresholdSlider } from '@/components/ThresholdSlider'
 import type { DuplicateGroup, ScanProgress as ScanProgressData } from '@/lib/duplicateFinder'
 import { findExactDuplicates, findSimilarDuplicates } from '@/lib/duplicateFinder'
-import type { DirectorySource } from '@/lib/fileSystem'
-import { scanDirectory } from '@/lib/fileSystem'
+import type { DirectorySource, DirectoryTreeNode } from '@/lib/fileSystem'
+import { collectFileEntries, discoverFiles } from '@/lib/fileSystem'
 
 type AppState = 'idle' | 'scanning' | 'processing' | 'results'
 
@@ -31,6 +31,7 @@ export default function HomePage() {
   const [results, setResults] = useState<DuplicateGroup[]>([])
   const [totalFiles, setTotalFiles] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [directoryTree, setDirectoryTree] = useState<DirectoryTreeNode[]>([])
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -43,23 +44,57 @@ export default function HomePage() {
     abortControllerRef.current = controller
 
     try {
-      // Фаза 1: сканирование — собираем все файлы
+      // Фаза 1: обнаружение — рекурсивный поиск субдиректорий и подсчёт файлов
+      setDirectoryTree([])
       setProgress({
         totalFiles: 0,
+        processedFiles: 0,
+        currentFile: '',
+        phase: 'discovering',
+        directoriesFound: 0,
+      })
+
+      const discovery = await discoverFiles(
+        source,
+        info => {
+          setProgress({
+            totalFiles: info.filesFound,
+            processedFiles: 0,
+            currentFile: info.currentDirectory,
+            phase: 'discovering',
+            directoriesFound: info.directoriesFound,
+          })
+
+          if (info.directoryTree) {
+            setDirectoryTree(info.directoryTree)
+          }
+        },
+        controller.signal,
+      )
+
+      if (discovery.totalFiles === 0) {
+        setError('Изображения не найдены в выбранной директории')
+        setAppState('idle')
+        return
+      }
+
+      // Фаза 2: сбор данных файлов
+      let collectedCount = 0
+
+      setProgress({
+        totalFiles: discovery.totalFiles,
         processedFiles: 0,
         currentFile: '',
         phase: 'scanning',
       })
 
-      let foundCount = 0
-
-      const files = await scanDirectory(
-        source,
+      const files = await collectFileEntries(
+        discovery,
         entry => {
-          foundCount += 1
+          collectedCount += 1
           setProgress({
-            totalFiles: foundCount,
-            processedFiles: 0,
+            totalFiles: discovery.totalFiles,
+            processedFiles: collectedCount,
             currentFile: entry.path,
             phase: 'scanning',
           })
@@ -67,16 +102,10 @@ export default function HomePage() {
         controller.signal,
       )
 
-      if (files.length === 0) {
-        setError('Изображения не найдены в выбранной директории')
-        setAppState('idle')
-        return
-      }
-
       setTotalFiles(files.length)
       setAppState('processing')
 
-      // Фаза 2: хэширование и сравнение
+      // Фаза 3: хэширование и сравнение
       let groups: DuplicateGroup[]
 
       if (searchMode === 'exact') {
@@ -110,6 +139,7 @@ export default function HomePage() {
     setResults([])
     setTotalFiles(0)
     setError(null)
+    setDirectoryTree([])
   }, [])
 
   return (
@@ -137,7 +167,11 @@ export default function HomePage() {
 
           {/* Сканирование / обработка */}
           {(appState === 'scanning' || appState === 'processing') && (
-            <ScanProgress progress={progress} onCancel={handleCancel} />
+            <ScanProgress
+              progress={progress}
+              directoryTree={directoryTree}
+              onCancel={handleCancel}
+            />
           )}
 
           {/* Результаты */}

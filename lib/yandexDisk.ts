@@ -92,6 +92,8 @@ const isImageFile = (r: YandexResource) =>
 
 /**
  * Рекурсивно собирает изображения из папки через resources API.
+ * onDirectory вызывается при входе в каждую папку.
+ * onDirectoryComplete вызывается после полного сканирования папки (включая подпапки).
  */
 async function listImagesFromFolder(
   token: string,
@@ -99,7 +101,11 @@ async function listImagesFromFolder(
   results: YandexResource[],
   onFile: (resource: YandexResource) => void,
   signal?: AbortSignal,
+  onDirectory?: (folderPath: string) => void,
+  onDirectoryComplete?: (folderPath: string) => void,
 ): Promise<void> {
+  onDirectory?.(folderPath)
+
   let offset = 0
   const limit = 1000
 
@@ -142,7 +148,15 @@ async function listImagesFromFolder(
         results.push(item)
         onFile(item)
       } else if (item.type === 'dir') {
-        await listImagesFromFolder(token, item.path, results, onFile, signal)
+        await listImagesFromFolder(
+          token,
+          item.path,
+          results,
+          onFile,
+          signal,
+          onDirectory,
+          onDirectoryComplete,
+        )
       }
     }
 
@@ -152,23 +166,37 @@ async function listImagesFromFolder(
 
     offset += limit
   }
+
+  onDirectoryComplete?.(folderPath)
 }
 
 /**
  * Собирает изображения: при выборе папок — рекурсивно через resources API,
  * при пустом выборе — плоский список через all-files.
+ * onDirectory вызывается при входе в каждую папку.
+ * onDirectoryComplete вызывается после полного сканирования папки.
  */
 export async function listImageFiles(
   token: string,
   folderPaths: string[],
   onFile: (resource: YandexResource) => void,
   signal?: AbortSignal,
+  onDirectory?: (folderPath: string) => void,
+  onDirectoryComplete?: (folderPath: string) => void,
 ): Promise<YandexResource[]> {
   const results: YandexResource[] = []
 
   if (folderPaths.length > 0) {
     for (const folderPath of folderPaths) {
-      await listImagesFromFolder(token, folderPath, results, onFile, signal)
+      await listImagesFromFolder(
+        token,
+        folderPath,
+        results,
+        onFile,
+        signal,
+        onDirectory,
+        onDirectoryComplete,
+      )
     }
     return results
   }

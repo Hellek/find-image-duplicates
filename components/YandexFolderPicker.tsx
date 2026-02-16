@@ -29,6 +29,19 @@ function pathToName(path: string): string {
   return parts[parts.length - 1] || 'Диск'
 }
 
+/** Проверяет, выбран ли какой-либо предок указанного пути */
+export function isAncestorSelected(
+  path: string,
+  selectedPaths: Set<string>,
+): boolean {
+  for (const sel of selectedPaths) {
+    if (path !== sel && path.startsWith(sel + '/')) {
+      return true
+    }
+  }
+  return false
+}
+
 export function YandexFolderPicker({
   token,
   onScan,
@@ -122,6 +135,13 @@ export function YandexFolderPicker({
         next.delete(path)
       } else {
         next.add(path)
+
+        // Удаляем дочерние — они покрываются родителем
+        for (const sel of prev) {
+          if (sel.startsWith(path + '/')) {
+            next.delete(sel)
+          }
+        }
       }
       return next
     })
@@ -171,9 +191,18 @@ export function YandexFolderPicker({
           <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
             <input
               type="checkbox"
-              checked={selected.has(item.path)}
+              checked={
+                selected.has(item.path)
+                || isAncestorSelected(item.path, selected)
+              }
+              disabled={isAncestorSelected(item.path, selected)}
               onChange={() => toggleSelect(item.path)}
               className="rounded"
+              title={
+                isAncestorSelected(item.path, selected)
+                  ? 'Включено через родительскую папку'
+                  : undefined
+              }
             />
             {isExpanded ? (
               <FolderOpen className="size-4 shrink-0 text-amber-500" />
@@ -190,7 +219,7 @@ export function YandexFolderPicker({
   }
 
   return (
-    <div className="w-full max-w-md space-y-4">
+    <div className="w-full max-w-lg space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Выберите папки (рекурсивный поиск). Пустой выбор — сканирование всего Диска.

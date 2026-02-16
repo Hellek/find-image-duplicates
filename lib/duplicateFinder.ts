@@ -25,11 +25,13 @@ export interface ScanProgress {
   /** Путь текущего обрабатываемого файла */
   currentFile: string
   /** Текущая фаза */
-  phase: 'scanning' | 'hashing' | 'comparing'
+  phase: 'discovering' | 'scanning' | 'hashing' | 'comparing'
   /** Ориентировочное оставшееся время в миллисекундах */
   estimatedRemainingMs?: number
   /** Скорость скачивания в байт/сек (только при загрузке удалённых файлов) */
   downloadSpeed?: number
+  /** Количество найденных директорий (фаза discovering) */
+  directoriesFound?: number
 }
 
 /** Сколько файлов обрабатывать перед yield на UI поток */
