@@ -61,3 +61,5 @@ npm run build
 | `npm run lint` | ESLint                 |
 | `npm run type-check` | Проверка типов  |
 | `npm run test` | Тесты                  |
+| `npm run fixtures:generate` | Генерация вариантов изображения (resize, качество, фильтры), см. `scripts/README.md` |
+| `npm run fixtures:check-similar` | Проверка двух файлов/папок на перцептивную схожесть, см. `scripts/README.md` |

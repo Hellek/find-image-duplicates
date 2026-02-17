@@ -195,7 +195,6 @@ export async function findExactDuplicates(
   // Быстрый путь: хэши из метаданных API (без скачивания)
   const hashKey = getMetadataHashKey(files)
   if (hashKey) {
-    console.log(`[duplicateFinder] Быстрый путь: группировка по ${hashKey} из метаданных (${files.length} файлов)`)
     return findExactDuplicatesByMetadata(files, hashKey, onProgress, signal)
   }
 
@@ -328,10 +327,6 @@ export async function findSimilarDuplicates(
         await new Promise(r => setTimeout(r, 0))
       }
     }
-
-    console.log(
-      `[duplicateFinder] Похожие: ${files.length} файлов, ${uniqueCount} уникальных по md5 → хэшировано ${uniqueCount}`,
-    )
   } else {
     // Fallback: нет метаданных — хэшируем все файлы
     const isRemote = files.length > 0 && !files[0].file
